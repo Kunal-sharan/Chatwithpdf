@@ -38,7 +38,7 @@ if key:
             
             user_query=st.text_input("Ask Question about your pdf:")
             if user_query:
-                user_query+=" from the given pdf"
+                user_query+=" from the pdf"
                 docs=knowledge_base.similarity_search(user_query)
                 # st.write(docs)
                 llm=OpenAI(openai_api_key=f"{key}")
