@@ -7,12 +7,13 @@ from langchain.vectorstores import FAISS
 from langchain.chains.question_answering import load_qa_chain
 from langchain.llms import OpenAI
 from langchain.callbacks import get_openai_callback
-
+from langchain_anthropic import AnthropicLLM
 
 
 st.header("CHAT WITH PDFs")
-key=st.text_input("Put the api key here")
-if key:
+res_key=st.text_input("Put the claude api key here")
+em_key=st.text_input("Put the open api key here")
+if res_key and em_key:
 
     pdf=st.file_uploader("Upload the PDFs ", type=["pdf"])
 
@@ -32,7 +33,7 @@ if key:
             chunks=text_split.split_text(text)
             # st.write(chunks)
             
-            embeddings=OpenAIEmbeddings(openai_api_key=f"{key}")
+            embeddings=OpenAIEmbeddings(openai_api_key=f"{em_key}")
             # st.write(embeddings)
             knowledge_base=FAISS.from_texts(chunks,embeddings)
             
@@ -41,11 +42,11 @@ if key:
                 user_query+=" explain using the pdf and include relevant quotations taken directly from pdf in double quotes"
                 docs=knowledge_base.similarity_search(user_query)
                 # st.write(docs)
-                llm=OpenAI(openai_api_key=f"{key}")
+                llm=AnthropicLLM(anthropic_api_key=f"{res_key}",model='claude-2.1')
                 chain=load_qa_chain(llm,chain_type="stuff")
-                with get_openai_callback() as cb:
-                    response=chain.run(input_documents=docs,question=user_query)
-                    st.write(response)
-                    st.write(cb)
+                # with get_openai_callback() as cb:
+                response=chain.run(input_documents=docs,question=user_query)
+                st.write(response)
+                # st.write(cb)
 
 
