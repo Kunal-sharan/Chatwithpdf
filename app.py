@@ -40,8 +40,9 @@ if res_key and em_key:
                         pdf_image=PdfImage(raw_image)
                         
                         st.image(pdf_image.as_pil_image())
-                        # embedding = ibed.to_embeddings(pdf_image.as_pil_image())
-                        # st.write(list(embedding))
+                        embedding = ibed.to_embeddings(pdf_image.as_pil_image())
+                        ar=list(embedding)
+                        st.write(ar)
             text_split=CharacterTextSplitter(
                 separator="\n",
                 chunk_size=1500,
