@@ -14,6 +14,7 @@ from pikepdf import Pdf,PdfImage
 import numpy as np
 import pikepdf
 from imgbeddings import imgbeddings
+import time
 
 ibed = imgbeddings()
 
@@ -45,8 +46,8 @@ if res_key and em_key:
                         st.write(ar)
             text_split=CharacterTextSplitter(
                 separator="\n",
-                chunk_size=1500,
-                chunk_overlap=500,
+                chunk_size=2000,
+                chunk_overlap=700,
                 length_function=len
             )
             chunks=text_split.split_text(text)
@@ -56,16 +57,44 @@ if res_key and em_key:
             # st.write(embeddings)
             knowledge_base=FAISS.from_texts(chunks,embeddings)
             
-            user_query=st.text_input("Ask Question about your pdf:")
-            if user_query:
-                user_query+=" explain using the pdf and include relevant quotations taken directly from pdf in double quotes"
+                # user_query+=" explain using the pdf and include relevant quotations taken directly from pdf in double quotes"
+                
+            def response_generator(user_query):
                 docs=knowledge_base.similarity_search(user_query)
-                # st.write(docs)
+            # st.write(docs)
                 llm=AnthropicLLM(anthropic_api_key=f"{res_key}",model='claude-2.1')
                 chain=load_qa_chain(llm,chain_type="stuff")
-                # with get_openai_callback() as cb:
-                response=chain.run(input_documents=docs,question=user_query)
-                st.write(response)
+                response = chain.run(input_documents=docs,question=user_query)
+                for word in response.split():
+                    yield word + " "
+                    time.sleep(0.05)
+            # with get_openai_callback() as cb:
+            st.title("CHAT WITH YOUR PDF")
+
+# Initialize chat history
+            if "messages" not in st.session_state:
+                st.session_state.messages = []
+
+            # Display chat messages from history on app rerun
+            for message in st.session_state.messages:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
+
+            # Accept user input
+            if prompt := st.chat_input("What is up?"):
+                # Add user message to chat history
+                st.session_state.messages.append({"role": "user", "content": prompt})
+                # Display user message in chat message container
+                with st.chat_message("user"):
+                    st.markdown(prompt)
+
+                # Display assistant response in chat message container
+                with st.chat_message("assistant"):
+                    response = st.write_stream(response_generator(prompt))
+                # Add assistant response to chat history
+                st.session_state.messages.append({"role": "assistant", "content": response})
+                # response=chain.run(input_documents=docs,question=user_query)
+                # st.write(response)
                 # st.write(cb)
 
 
