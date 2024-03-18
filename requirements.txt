@@ -5,3 +5,7 @@ openai
 tiktoken
 faiss-cpu
 langchain-anthropic
+PIL
+pikepdf
+imgbeddings
+numpy

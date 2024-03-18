@@ -8,7 +8,14 @@ from langchain.chains.question_answering import load_qa_chain
 from langchain.llms import OpenAI
 from langchain.callbacks import get_openai_callback
 from langchain_anthropic import AnthropicLLM
+from PIL import Image
+import io
+from pikepdf import Pdf,PdfImage
+import numpy as np
+import pikepdf
+from imgbeddings import imgbeddings
 
+ibed = imgbeddings()
 
 st.header("CHAT WITH PDFs")
 res_key=st.text_input("Put the claude api key here")
@@ -23,11 +30,22 @@ if res_key and em_key:
             for page in pdf_reader.pages:
                 text+=page.extract_text()
             # st.write(text)
-
+            with st.sidebar:
+                pdf_read=Pdf.open(pdf)
+                for i in  range(len(pdf_read.pages)):
+                    page=pdf_read.pages[i]
+                    arr=list(page.images.keys())
+                    if len(arr):
+                        raw_image=page.images[arr[0]]
+                        pdf_image=PdfImage(raw_image)
+                        
+                        st.image(pdf_image.as_pil_image())
+                        # embedding = ibed.to_embeddings(pdf_image.as_pil_image())
+                        # st.write(list(embedding))
             text_split=CharacterTextSplitter(
                 separator="\n",
-                chunk_size=1000,
-                chunk_overlap=400,
+                chunk_size=1500,
+                chunk_overlap=500,
                 length_function=len
             )
             chunks=text_split.split_text(text)
