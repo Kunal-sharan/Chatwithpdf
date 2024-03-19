@@ -46,8 +46,8 @@ if res_key and em_key:
                         st.write(ar)
             text_split=CharacterTextSplitter(
                 separator="\n",
-                chunk_size=2000,
-                chunk_overlap=700,
+                chunk_size=1500,
+                chunk_overlap=500,
                 length_function=len
             )
             chunks=text_split.split_text(text)
