@@ -56,14 +56,15 @@ def main():
         st.subheader("Your documents")
         pdf_docs = st.file_uploader(
             "Upload your PDFs here and click on 'Process'", accept_multiple_files=True)
-        raw_text = get_pdf_text(pdf_docs)
+        if  pdf_docs is not None:
+            raw_text = get_pdf_text(pdf_docs)
 
-        # get the text chunks
-        text_chunks = get_text_chunks(raw_text)
+            # get the text chunks
+            text_chunks = get_text_chunks(raw_text)
 
-        # create vector store
-        vectorstore = get_vectorstore(text_chunks,key) 
-        st.success("Done")   
+            # create vector store
+            vectorstore = get_vectorstore(text_chunks,key) 
+            st.success("Done")   
         with st.spinner("Processing"):
                 # get pdf text
                 with st.sidebar:
