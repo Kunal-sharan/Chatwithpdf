@@ -38,9 +38,7 @@ def get_text_chunks(text):
 
 
 def get_vectorstore(text_chunks,key):
-    embeddings = OpenAIEmbeddings(openai_api_key=f"{key}")
-    # embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl")
-    vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
+    
     return vectorstore
 
 
@@ -63,7 +61,9 @@ def main():
             text_chunks = get_text_chunks(raw_text)
 
             # create vector store
-            vectorstore = get_vectorstore(text_chunks,key) 
+            embeddings = OpenAIEmbeddings(openai_api_key=f"{key}")
+    # embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl")
+            vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings) 
             st.success("Done")   
         with st.spinner("Processing"):
                 # get pdf text
