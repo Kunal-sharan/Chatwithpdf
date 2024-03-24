@@ -59,7 +59,7 @@ if key:
             embeddings = OpenAIEmbeddings(openai_api_key=f"{key}")
     # embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl")
             vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings) 
-        st.success("Done")   
+            st.success("Done")   
     with st.spinner("Processing"):
             # get pdf text
             with st.sidebar:
