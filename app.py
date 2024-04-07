@@ -37,6 +37,16 @@ def get_text_chunks(text):
     chunks = text_splitter.split_text(text)
     return chunks
 
+# def res_chains(docs,ques,key):
+#     llm=OpenAI(openai_api_key=f"{key}")
+#     if docs:
+#             embeddings = OpenAIEmbeddings(openai_api_key=f"{key}")
+#     # embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl")
+#             st.session_state.vector_store = FAISS.from_texts(docs, embeddings)
+#             chain=load_qa_chain(llm,chain_type="stuff")
+#             res=chain.run(input_documents=docs,question=ques)
+
+
 tut_ques=[]
 template = """use this and only this {ass_chunk} chunk of text to extract the complete questions present in it
 question:
@@ -92,26 +102,26 @@ if key:
                     
                     # st.write(cb)
 
-    with st.spinner("Processing"):
-            # get pdf text
-            with st.sidebar:
-                st.header("Image Extracted from Docs: ")
+    # with st.spinner("Processing"):
+    #         # get pdf text
+    #         with st.sidebar:
+    #             st.header("Image Extracted from Docs: ")
 
-                for pdf in pdf_docs:
-                    pdf_read=Pdf.open(pdf)
-                    for i in  range(len(pdf_read.pages)):
-                        page=pdf_read.pages[i]
-                        arr=list(page.images.keys())
-                        if len(arr):
-                            raw_image=page.images[arr[0]]
-                            pdf_image=PdfImage(raw_image)
+                # for pdf in pdf_docs:
+                #     pdf_read=Pdf.open(pdf)
+                #     for i in  range(len(pdf_read.pages)):
+                #         page=pdf_read.pages[i]
+                #         arr=list(page.images.keys())
+                #         if len(arr):
+                #             raw_image=page.images[arr[0]]
+                #             pdf_image=PdfImage(raw_image)
                             
-                            st.image(pdf_image.as_pil_image())
-                            # embedding = ibed.to_embeddings(pdf_image.as_pil_image())
-                            # ar=list(embedding)
-                            # st.write(ar)
-                        else:
-                            st.write(f"No image in the page {i+1}")
+                #             st.image(pdf_image.as_pil_image())
+                #             # embedding = ibed.to_embeddings(pdf_image.as_pil_image())
+                #             # ar=list(embedding)
+                #             # st.write(ar)
+                #         else:
+                #             st.write(f"No image in the page {i+1}")
        
     
 
