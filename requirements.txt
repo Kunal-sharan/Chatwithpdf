@@ -8,3 +8,4 @@ pillow
 pikepdf
 imgbeddings
 numpy
+langchain-anthropic
