@@ -184,7 +184,7 @@ if key and claud_key and youtube_key :
                                         y_url=f"https://www.youtube.com/watch?v={search_result['id']['videoId']}"
                                         st.write(f"Video Link: https://www.youtube.com/watch?v={search_result['id']['videoId']}")
                                         try:
-                                         st.video(y_url)
+                                            st.video(y_url)
                                         except:
                                             st.write("Video not available.")
                                 
