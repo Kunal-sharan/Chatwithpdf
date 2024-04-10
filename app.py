@@ -18,6 +18,17 @@ import numpy as np
 import pikepdf
 from imgbeddings import imgbeddings
 from langchain_anthropic import AnthropicLLM
+from googleapiclient.discovery import build
+# from langchain_google_genai import GoogleGenerativeAI
+
+# You need to replace YOUR_API_KEY with your actual API Key
+
+
+# from selenium import webdriver
+# from selenium.webdriver.common.keys import Keys
+# from selenium.webdriver.common.by import By
+# from bs4 import BeautifulSoup
+
 
 def get_pdf_text(pdf_docs):
     text = ""
@@ -49,6 +60,9 @@ def chat_with_claud(question, vectorstore, claud_key):
 
 st.set_page_config(page_title="CourseMate.ai(v.0.01)-->(v.0.02)", page_icon=":books:")
 tut_ques=[]
+imp=[]
+arr_list=[]
+imp_list=[]
 template = """use this and only this {ass_chunk} chunk of text to extract the complete questions present in it
 question:
 """
@@ -56,13 +70,15 @@ vector_store=None
 prompt = PromptTemplate.from_template(template)
 key = st.text_input("Enter your Open AI API Key")
 claud_key = st.text_input("Enter your Claud AI API Key")
+youtube_key=st.text_input("Enter your Youtube Data V3 API key")
+# api_key=st.text_input("Google ai key")
 
-if key and claud_key:
+if key and claud_key and youtube_key :
     st.header("CourseMate.ai(v.0.01)-->(v.0.02) :books:")
     
     st.subheader("Your documents")
     pdf_docs = st.file_uploader("Upload your PDFs here and click on 'Process'", accept_multiple_files=True)
-
+    
     if pdf_docs is not None:
         process_button = st.button('Process')
 
@@ -80,7 +96,7 @@ if key and claud_key:
 
     option=st.selectbox(
         "What would you like to do?",
-         ("Ask a Question", "Solve Assignment"),
+         ( "Solve Assignment","Ask a Question"),
          
          placeholder="Select which tool to use..."
     )
@@ -131,12 +147,46 @@ if key and claud_key:
                                     newarr.append(arr[i])
                                     tut_topics=vectorstore.similarity_search(arr[i])
                                     st.write("Question: ",arr[i])
-                                    st.write(tut_topics)
+                                    # st.write(tut_topics)
                                     llm=OpenAI(openai_api_key=f"{key}")
+                                    # llm = GoogleGenerativeAI(model="models/text-bison-001", google_api_key=f'{api_key}')
+
                                     chain=load_qa_chain(llm,chain_type="stuff")
                                     with get_openai_callback() as cb:
-                                        response=chain.run(input_documents=tut_topics,question=arr[i])
+                                        try:
+                                            response=chain.run(input_documents=tut_topics,question=arr[i])
+                                            res_list=chain.run(input_documents=tut_topics,question="Use only and only this given chunk to provide a list of atmax 5 topics which the chunk comprises of , and make sure the 5 topics which you provide covers the entire chunk")
+                                        except:
+                                            response="No data"
+                                            res_list=""
                                         st.write(response)
+                                        imp.append(res_list)
                                         st.write(cb)
+                        # st.write(imp)
+                        for i in range(0,len(imp)):
+                            arr_list=imp[i].split("\n")
+                            for j in range(0,len(arr_list)):
+                                imp_list.append(arr_list[j])   
+                        st.write(imp_list)
+                        youtube = build('youtube', 'v3', developerKey=f'{youtube_key}')
+                        for i in range(0,len(imp_list)):
+                            if len(imp_list[i])>0:
+                                st.write(imp_list[i])
+                                st.write("------------------------------------------------------------------------------------------------------------")
+                                search_response = youtube.search().list(
+            q=f'{imp_list[i]}',
+            part='id,snippet',
+            maxResults=1
+        ).execute()
+                                for search_result in search_response.get('items', []):
+                                    if search_result['id']['kind'] == 'youtube#video':
+                                        st.write(f"Title: {search_result['snippet']['title']}")
+                                        y_url=f"https://www.youtube.com/watch?v={search_result['id']['videoId']}"
+                                        st.write(f"Video Link: https://www.youtube.com/watch?v={search_result['id']['videoId']}")
+                                        try:
+                                         st.video(y_url)
+                                        except:
+                                            st.write("Video not available.")
+                                
 
-    
+                        

@@ -9,3 +9,4 @@ pikepdf
 imgbeddings
 numpy
 langchain-anthropic
+google-api-python-client
