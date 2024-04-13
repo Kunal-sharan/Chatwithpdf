@@ -167,26 +167,41 @@ if key and claud_key and youtube_key :
                             arr_list=imp[i].split("\n")
                             for j in range(0,len(arr_list)):
                                 imp_list.append(arr_list[j])   
-                        st.write(imp_list)
+                        # st.write(imp_list)
                         youtube = build('youtube', 'v3', developerKey=f'{youtube_key}')
+                        yt_data=[]
                         for i in range(0,len(imp_list)):
                             if len(imp_list[i])>0:
-                                st.write(imp_list[i])
-                                st.write("------------------------------------------------------------------------------------------------------------")
+                                
+                                
                                 search_response = youtube.search().list(
-            q=f'{imp_list[i]}',
-            part='id,snippet',
-            maxResults=1
-        ).execute()
+                                            q=f'{imp_list[i]}',
+                                            part='id,snippet',
+                                            maxResults=1
+                                        ).execute()
                                 for search_result in search_response.get('items', []):
                                     if search_result['id']['kind'] == 'youtube#video':
-                                        st.write(f"Title: {search_result['snippet']['title']}")
-                                        y_url=f"https://www.youtube.com/watch?v={search_result['id']['videoId']}"
-                                        st.write(f"Video Link: https://www.youtube.com/watch?v={search_result['id']['videoId']}")
-                                        try:
-                                            st.video(y_url)
-                                        except:
-                                            st.write("Video not available.")
+                                        video_data = {
+                                                "topic":f"{imp_list[i]}",
+                                                "title": f"{search_result['snippet']['title']}",
+                                                "links": f"https://www.youtube.com/watch?v={search_result['id']['videoId']}",
+                                                "desc":f"Description: {search_result['snippet']['description']}"
+                                            }
+                                        yt_data.append(video_data)
+                        num_rows = len(yt_data) // 1
+                        if len(yt_data) % 1 != 0:
+                            num_rows += 1
+
+                        for i in range(num_rows):
+                            cols = st.columns(1)
+                            for j in range(1):
+                                index = i * 1 + j
+                                if index < len(yt_data):
+                                    tile = cols[j].container(height=700)
+                                    tile.write(yt_data[index]["topic"])
+                                    tile.write(yt_data[index]["title"])
+                                    tile.video(yt_data[index]["links"])
+                                    tile.write(yt_data[index]["desc"])
                                 
 
                         
