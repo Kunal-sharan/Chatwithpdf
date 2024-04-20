@@ -58,9 +58,9 @@ def get_text_chunks(text):
     chunks = text_splitter.split_text(text)
     return chunks
 
-def create_download_link(val, filename):
+def create_download_link(val, filename,type_file):
     b64 = base64.b64encode(val)  # val looks like b'...'
-    return f'<a href="data:application/octet-stream;base64,{b64.decode()}" download="{filename}.pdf">Download file</a>'
+    return f'<a href="data:application/octet-stream;base64,{b64.decode()}" download="{filename}.pdf">Download file {type_file}</a>'
 
 def chat_with_claud(question, vectorstore, claud_key):
     if question:
@@ -246,13 +246,69 @@ if key and claud_key and youtube_key :
                             
         if "data" in st.session_state:
             # Create an "Export Report" button
-            export_as_pdf = st.button("Export Report")
             q=st.session_state.data
             
 # If the button is clicked
+            
+            export_as_pdf = st.button("Export Report with relevant youtube videos link")
             if export_as_pdf:
-                # st.write(q)
-                # st.write(len(ques_ans))
+                    pdf = FPDF()
+                    pdf.add_font('DejaVu', '', 'DejaVuSansCondensed.ttf', uni=True)
+                    pdf.add_font('DejaVuB', '', 'DejaVuSans-Bold.ttf', uni=True)
+                    pdf.add_font('DejaVuN', '', 'DejaVuSans.ttf', uni=True)
+
+                    for i in range(0,len(st.session_state.data[0])):
+                        pdf.set_margins(10, 10, 5)
+                        pdf.add_page()
+                        report_text=""
+                        links=""
+                            #  links+=f"""<h1>Title:</h1><h2>{n_t}</h2>
+                            #             <br>
+                            #             <A HREF="{lnk}">{lnk}</A>
+                            #             """ 
+
+                        report_text = f"Q: {str(st.session_state.data[0][i])} \n\n {str(st.session_state.data[1][i])}\n\n Important topics based on the anwsers: {str(st.session_state.data[2][i])}\n\n All Relevant Video Links: \n {links} "
+
+                        pdf.set_font('DejaVu', '', 14)
+                        # pdf.multi_cell(0,10, report_text)
+                        # pdf.set_font("Arial", size = 12)
+                        
+                        # Section 1
+                        pdf.multi_cell(0, 10, txt = "Q: " + str(st.session_state.data[0][i]), ln = True)
+                        pdf.set_font('DejaVuB', '', 12)
+
+                        # Section 2
+                        pdf.multi_cell(0, 10, txt ="A: "+ str(st.session_state.data[1][i])+"\n", ln = True)
+                        pdf.set_font('DejaVuB', '', 14)
+                        pdf.set_text_color(255, 0, 0)
+                        # Section 3
+                        pdf.multi_cell(0, 10, txt = "Important topics based on the answers: " , ln=True)
+                        pdf.set_text_color(0, 0, 0)
+                        pdf.set_font('DejaVu', '', 12)
+                        important_topics = str(st.session_state.data[2][i])
+                        pdf.multi_cell(0, 10, txt = important_topics,ln=True)
+                        pdf.set_font('DejaVu', '', 14)
+                        pdf.multi_cell(0,10,txt="\n"+"IMPORTANT TOPICS AND LINKS: ",ln=True)
+                        for j in range(0,len(st.session_state.data[3][i])):
+                            title=st.session_state.data[3][i][j]["title"]
+                            t_arr=title.split(" ")
+                            n_t=' '.join(map(str, t_arr))
+                            lnk=st.session_state.data[3][i][j]["links"]
+                            pdf.set_font('DejaVuB', '', 12)
+                            pdf.multi_cell(0, 10, txt = f"{n_t}",ln=True )
+                            pdf.set_font('DejaVu', '', 12)
+                            pdf.set_text_color(0, 0, 255)
+                            pdf.multi_cell(0, 10, txt = f"{lnk}" , ln=True)
+                            pdf.set_text_color(0, 0, 0)
+
+
+                            
+                    html = create_download_link(pdf.output(dest="S"), "test","With youtube video links")
+
+                    st.markdown(html, unsafe_allow_html=True)
+            
+            export_as_pdf_E = st.button("Export Report without video links")
+            if export_as_pdf_E:
                 pdf = FPDF()
                 pdf.add_font('DejaVu', '', 'DejaVuSansCondensed.ttf', uni=True)
                 pdf.add_font('DejaVuB', '', 'DejaVuSans-Bold.ttf', uni=True)
@@ -269,25 +325,6 @@ if key and claud_key and youtube_key :
                         #             """ 
 
                     report_text = f"Q: {str(st.session_state.data[0][i])} \n\n {str(st.session_state.data[1][i])}\n\n Important topics based on the anwsers: {str(st.session_state.data[2][i])}\n\n All Relevant Video Links: \n {links} "
-#                     report_html="""<h1>Question</h1>
-# <p>{str(st.session_state.data[0][i])}</p>
-
-# <h1>Answer</h1>
-# <p>{str(st.session_state.data[1][i])}</p>
-
-# <h1>Important Topics</h1>
-# <ul>
-#     <li> {str(st.session_state.data[2][i])}</li>
-    
-# </ul>
-
-# <h1>Video Links</h1>
-# <ul>
-#     <li><a href="[1](https://www.youtube.com/watch?v=dQw4w9WgXcQ)">Video 1</a></li>
-#     <li><a href="[2](https://www.youtube.com/watch?v=3tmd-ClpJxA)">Video 2</a></li>
-#     <li><a href="[3](https://www.youtube.com/watch?v=ktvTqknDobU)">Video 3</a></li>
-# </ul>
-# """
                     pdf.set_font('DejaVu', '', 14)
                     # pdf.multi_cell(0,10, report_text)
                     # pdf.set_font("Arial", size = 12)
@@ -306,41 +343,28 @@ if key and claud_key and youtube_key :
                     pdf.set_font('DejaVu', '', 12)
                     important_topics = str(st.session_state.data[2][i])
                     pdf.multi_cell(0, 10, txt = important_topics,ln=True)
-                    pdf.set_font('DejaVu', '', 14)
-                    pdf.multi_cell(0,10,txt="\n"+"IMPORTANT TOPICS AND LINKS: ",ln=True)
-                    for j in range(0,len(st.session_state.data[3][i])):
-                        title=st.session_state.data[3][i][j]["title"]
-                        t_arr=title.split(" ")
-                        n_t=' '.join(map(str, t_arr))
-                        lnk=st.session_state.data[3][i][j]["links"]
-                        pdf.set_font('DejaVuB', '', 12)
-                        pdf.multi_cell(0, 10, txt = f"{n_t}",ln=True )
-                        pdf.set_font('DejaVu', '', 12)
-                        pdf.set_text_color(0, 0, 255)
-                        pdf.multi_cell(0, 10, txt = f"{lnk}" , ln=True)
-                        pdf.set_text_color(0, 0, 0)
+                    
 
 
-                         
-                html = create_download_link(pdf.output(dest="S"), "test")
+                        
+                html = create_download_link(pdf.output(dest="S"), "test","without video links")
 
                 st.markdown(html, unsafe_allow_html=True)
+                            
+                            # num_rows = len(yt_data) // 1
+                            # if len(yt_data) % 1 != 0:
+                            #     num_rows += 1
 
-                        
-                        # num_rows = len(yt_data) // 1
-                        # if len(yt_data) % 1 != 0:
-                        #     num_rows += 1
+                            # for i in range(num_rows):
+                            #     cols = st.columns(1)
+                            #     for j in range(1):
+                            #         index = i * 1 + j
+                            #         if index < len(yt_data):
+                            #             tile = cols[j].container(height=700)
+                            #             tile.write(yt_data[index]["topic"])
+                            #             tile.write(yt_data[index]["title"])
+                            #             tile.video(yt_data[index]["links"])
+                            #             tile.write(yt_data[index]["desc"])
+                                    
 
-                        # for i in range(num_rows):
-                        #     cols = st.columns(1)
-                        #     for j in range(1):
-                        #         index = i * 1 + j
-                        #         if index < len(yt_data):
-                        #             tile = cols[j].container(height=700)
-                        #             tile.write(yt_data[index]["topic"])
-                        #             tile.write(yt_data[index]["title"])
-                        #             tile.video(yt_data[index]["links"])
-                        #             tile.write(yt_data[index]["desc"])
-                                
-
-                        
+                            
