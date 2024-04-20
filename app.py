@@ -34,14 +34,20 @@ from youtubesearchpython import VideosSearch
 # from bs4 import BeautifulSoup
 
 
-def get_pdf_text(pdf_docs):
+def get_pdf_ass_text(pdf_docs):
     text = ""
     for pdf in pdf_docs:
         pdf_reader = PdfReader(pdf)
         for page in pdf_reader.pages:
             text += page.extract_text()
     return text
-
+def get_pdf_text(pdf_docs,st,end):
+    text = ""
+    for pdf in pdf_docs:
+        pdf_reader = PdfReader(pdf)
+        for page in range(int(st),(int(end)+1)):
+            text += pdf_reader.pages[page].extract_text()
+    return text
 def get_text_chunks(text):
     text_splitter = CharacterTextSplitter(
         separator="\n",
@@ -87,20 +93,41 @@ if key and claud_key and youtube_key :
     st.subheader("Your documents")
     pdf_docs = st.file_uploader("Upload your PDFs here and click on 'Process'", accept_multiple_files=True)
     
-    if pdf_docs is not None:
-        process_button = st.button('Process')
+    if pdf_docs :
+        op=st.selectbox(
+        "What would you like to do?",
+         ( "Custom Pages","All pages(page limit)"))
+        if op and op == "Custom Pages" :
+            st_page=st.text_input("Enter start page ")
+            end_page=st.text_input("Enter end page ")
+            if st_page and end_page:
 
-        if process_button:
-            try:
-                raw_text = get_pdf_text(pdf_docs)
-                text_chunks = get_text_chunks(raw_text)
+                process_button = st.button('Process')
+                if process_button:
+                            try:
+                                raw_text = get_pdf_text(pdf_docs,st_page,end_page)
+                                text_chunks = get_text_chunks(raw_text)
 
-                if text_chunks:
-                    embeddings = OpenAIEmbeddings(openai_api_key=key)
-                    st.session_state.vectorstore = FAISS.from_texts(text_chunks, embeddings)
-                    st.success("Text processing completed!")
-            except:
-                st.write("Error in reading the file.")
+                                if text_chunks:
+                                    embeddings = OpenAIEmbeddings(openai_api_key=key)
+                                    st.session_state.vectorstore = FAISS.from_texts(text_chunks, embeddings)
+                                    st.success("Text processing completed!")
+                            except:
+                                st.write("Error in reading the file.")
+        
+        if op and op == "All pages(page limit 20 pages)" :
+                process_button = st.button('Process')
+                if process_button:
+                            try:
+                                raw_text = get_pdf_ass_text(pdf_docs)
+                                text_chunks = get_text_chunks(raw_text)
+
+                                if text_chunks:
+                                    embeddings = OpenAIEmbeddings(openai_api_key=key)
+                                    st.session_state.vectorstore = FAISS.from_texts(text_chunks, embeddings)
+                                    st.success("Text processing completed!")
+                            except:
+                                st.write("Error in reading the file.")
 
     option=st.selectbox(
         "What would you like to do?",
@@ -127,7 +154,7 @@ if key and claud_key and youtube_key :
         if tut_doc is not None :
             butut=st.button("Submit for Tutorial")
             if butut:
-                raw_ass_text=get_pdf_text(tut_doc)
+                raw_ass_text=get_pdf_ass_text(tut_doc)
                 text_ass_chunks=get_text_chunks(raw_ass_text)
                 # if text_ass_chunks:
                 #     ass_embeddings= OpenAIEmbeddings(openai_api_key=f"{key}")
@@ -202,12 +229,13 @@ if key and claud_key and youtube_key :
                                             #                 "desc":f"Description: {search_result['snippet']['description']}"
                                             #             }
                                             videoSearch=VideosSearch(f"{arr_list[i]}",limit=1)
-                                            video_data={
-                                                "title":f"{str(videoSearch.result()['result'][0]['title'])}",
-                                                "links":f"{videoSearch.result()['result'][0]['link']}",
-                                                "thumbnail":f"{videoSearch.result()['result'][0]['thumbnails'][0]['url']}"
-                                            }
-                                            yt_data.append(video_data)
+                                            if videoSearch.result()['result']:
+                                                video_data={
+                                                    "title":f"{str(videoSearch.result()['result'][0]['title'])}",
+                                                    "links":f"{videoSearch.result()['result'][0]['link']}",
+                                                    "thumbnail":f"{videoSearch.result()['result'][0]['thumbnails'][0]['url']}"
+                                                }
+                                                yt_data.append(video_data)
                                     st.write(yt_data)        
                                     lin_yt.append(yt_data)                    
                             ques_ans.append(newarr)            
