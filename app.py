@@ -23,7 +23,14 @@ from fpdf import FPDF
 import base64
 from io import BytesIO
 from youtubesearchpython import VideosSearch
-# from langchain_google_genai import GoogleGenerativeAI
+import pytesseract
+from textblob import TextBlob
+from autocorrect import Speller
+from spellchecker import SpellChecker
+import re
+spell = SpellChecker()
+spell = Speller(lang='en')
+
 
 # You need to replace YOUR_API_KEY with your actual API Key
 
@@ -33,6 +40,27 @@ from youtubesearchpython import VideosSearch
 # from selenium.webdriver.common.by import By
 # from bs4 import BeautifulSoup
 
+pytesseract.pytesseract.tesseract_cmd = r'D:\tessa\tesseract.exe'
+def apply_regex_correction(extracted_text):
+    try:
+        # Example: Replace '0' with 'O' in the extracted text
+        corrected_text = re.sub(r'0', 'O', extracted_text)
+        return corrected_text
+    except Exception as e:
+        print("Error during regex correction:", e)
+        return None
+
+# Function to apply spell check on extracted text
+def apply_spell_check(extracted_text):
+    try:
+        text = TextBlob(extracted_text)
+        corrected_text = str(text.correct())
+        return corrected_text
+    except Exception as e:
+        print("Error during spell check:", e)
+        return None
+
+# Function to apply language model for context-based corrections
 
 def get_pdf_ass_text(pdf_docs):
     text = ""
@@ -41,6 +69,20 @@ def get_pdf_ass_text(pdf_docs):
         for page in pdf_reader.pages:
             text += page.extract_text()
     return text
+def get_all_images(pdf_docs,s,e):
+    text=""
+    for pdf in pdf_docs:
+            pdf_read=Pdf.open(pdf)
+            for i in  range(int(s),int(e)+1):
+                page=pdf_read.pages[i]
+                arr=list(page.images.keys())
+                if len(arr):
+                    raw_image=page.images[arr[0]]
+                    pdf_image=PdfImage(raw_image)
+                    img=pytesseract.image_to_string(pdf_image.as_pil_image().convert('L'))
+                    text+=img
+    return text                
+
 def get_pdf_text(pdf_docs,st,end):
     text = ""
     for pdf in pdf_docs:
@@ -62,14 +104,16 @@ def create_download_link(val, filename,type_file):
     b64 = base64.b64encode(val)  # val looks like b'...'
     return f'<a href="data:application/octet-stream;base64,{b64.decode()}" download="{filename}.pdf">Download file {type_file}</a>'
 
-def chat_with_claud(question, vectorstore, claud_key):
+def chat_with_claud(question, vectorstore, claud_key,key):
     if question:
         doc = vectorstore.similarity_search(question)
-        chain = load_qa_chain(AnthropicLLM(model='claude-2.1', anthropic_api_key=claud_key), chain_type="stuff")
+        llm=OpenAI(openai_api_key=f"{key}")
+        # chain = load_qa_chain(AnthropicLLM(model='claude-2.1', anthropic_api_key=claud_key), chain_type="stuff")
+        chain = load_qa_chain(llm, chain_type="stuff")
         with st.spinner(f"Searching for '{question}'"):
             response = chain.run(input_documents=doc, question=question)
             st.write("Response:", response)
-
+        return response
 st.set_page_config(page_title="CourseMate.ai(v.0.01)-->(v.0.02)", page_icon=":books:")
 tut_ques=[]
 imp=[]
@@ -94,15 +138,46 @@ if key and claud_key and youtube_key :
     pdf_docs = st.file_uploader("Upload your PDFs here and click on 'Process'", accept_multiple_files=True)
     
     if pdf_docs :
+        with st.sidebar:
+            opp=st.selectbox(
+            "What would you like to do?",
+             ( "Custom Pages","All pages(page limit)"),key="1")
+            if opp and opp == "Custom Pages" :
+                s=st.text_input("Enter start page ")
+                e=st.text_input("Enter end page ")
+                if s and e:
+
+                    st.subheader("Your documents images")
+                    for pdf in pdf_docs:
+                                pdf_read=Pdf.open(pdf)
+                                for i in  range(int(s),int(e)+1):
+                                    page=pdf_read.pages[i]
+                                    arr=list(page.images.keys())
+                                    if len(arr):
+                                        raw_image=page.images[arr[0]]
+                                        pdf_image=PdfImage(raw_image)
+                                        
+                                        st.image(pdf_image.as_pil_image())
+            else:
+                 for pdf in pdf_docs:
+                        pdf_read=Pdf.open(pdf)
+                        for i in  range(len(pdf_read.pages)):
+                            page=pdf_read.pages[i]
+                            arr=list(page.images.keys())
+                            if len(arr):
+                                raw_image=page.images[arr[0]]
+                                pdf_image=PdfImage(raw_image)
+                                
+                                st.image(pdf_image.as_pil_image())                           
         op=st.selectbox(
         "What would you like to do?",
-         ( "Custom Pages","All pages(page limit)"))
+         ( "Custom Pages","All pages(page limit)","Scanned pdf with images"),key="2")
         if op and op == "Custom Pages" :
-            st_page=st.text_input("Enter start page ")
-            end_page=st.text_input("Enter end page ")
+            st_page=st.text_input("Enter start page ",key="4")
+            end_page=st.text_input("Enter end page ",key="3")
             if st_page and end_page:
 
-                process_button = st.button('Process')
+                process_button = st.button('Process',key="b")
                 if process_button:
                             try:
                                 raw_text = get_pdf_text(pdf_docs,st_page,end_page)
@@ -128,7 +203,31 @@ if key and claud_key and youtube_key :
                                     st.success("Text processing completed!")
                             except:
                                 st.write("Error in reading the file.")
+        if op and op == "Scanned pdf with images":
+            st_page=st.text_input("Enter start page ",key="5")
+            end_page=st.text_input("Enter end page ",key="6")
+            if st_page and end_page:
+                process_button = st.button('Process',key="a")
+                if process_button:
+                    st.write(get_all_images(pdf_docs,st_page,end_page))
+                    corrected_text_regex = apply_regex_correction(get_all_images(pdf_docs,st_page,end_page)) 
 
+                    # Apply spell check
+                    if corrected_text_regex:
+                        corrected_text_spellcheck = apply_spell_check(corrected_text_regex) if corrected_text_regex else None
+                        with st.container(border=True):
+                         st.write(corrected_text_spellcheck)
+                   
+                        if corrected_text_spellcheck:
+                            
+                                    
+                                    text_chunks = get_text_chunks(corrected_text_spellcheck)
+
+                                    # if text_chunks:
+                                    #     embeddings = OpenAIEmbeddings(openai_api_key=key)
+                                    #     st.session_state.vectorstore = FAISS.from_texts(text_chunks, embeddings)
+                                    #     st.success("Text processing completed!")
+                            
     option=st.selectbox(
         "What would you like to do?",
          ( "Solve Assignment","Ask a Question"),
@@ -145,7 +244,8 @@ if key and claud_key and youtube_key :
             user_question = st.text_input("Ask a question:", key="user_question")
 
             if user_question:
-                chat_with_claud(user_question, vectorstore, claud_key)
+                text_contents=str(chat_with_claud(user_question, vectorstore, claud_key,key))
+                st.download_button('Download some text', text_contents)
         else:
             st.write("Enter The documents First")
 
@@ -155,32 +255,35 @@ if key and claud_key and youtube_key :
             butut=st.button("Submit for Tutorial")
             if butut:
                 raw_ass_text=get_pdf_ass_text(tut_doc)
-                text_ass_chunks=get_text_chunks(raw_ass_text)
-                # if text_ass_chunks:
-                #     ass_embeddings= OpenAIEmbeddings(openai_api_key=f"{key}")
-                #     ass_store=FAISS.from_texts(text_ass_chunks,ass_embeddings)
-                #     st.success("Done")
-                # st.write(text_ass_chunks)
-                for i in range(0,len(text_ass_chunks)):
-                    if text_ass_chunks[i]:
-                        llm=OpenAI(openai_api_key=f"{key}")
-                        chain=LLMChain(prompt=prompt,llm=llm)
-                        ass_chunk=text_ass_chunks[i]
-                        response=chain.run(ass_chunk)
-                        # st.write(response)
-                        tut_ques.append(response)
-                        st.write(tut_ques)
+                # text_ass_chunks=get_text_chunks(raw_ass_text)
+                # # if text_ass_chunks:
+                # #     ass_embeddings= OpenAIEmbeddings(openai_api_key=f"{key}")
+                # #     ass_store=FAISS.from_texts(text_ass_chunks,ass_embeddings)
+                # #     st.success("Done")
+                # # st.write(text_ass_chunks)
+                # for i in range(0,len(text_ass_chunks)):
+                #     if text_ass_chunks[i]:
+                #         llm=OpenAI(openai_api_key=f"{key}")
+                #         chain=LLMChain(prompt=prompt,llm=llm)
+                #         ass_chunk=text_ass_chunks[i]
+                #         response=chain.run(ass_chunk)
+                #         # st.write(response)
+                #         tut_ques.append(response)
+                #         st.write(tut_ques)
+                q_t=raw_ass_text.split("?")
+               
                 newarr=[]
-                
+                arr=[]
                 lin_yt=[]
                 # youtube = build('youtube', 'v3', developerKey=f'{youtube_key}')              
                 with st.spinner("Processing..."):
                     if 'vectorstore' in st.session_state:
-                        for i in range(0,len(tut_ques)):
+                        # for i in range(0,len(q_t)):
+                        #     vectorstore=st.session_state.vectorstore
+                        #     arr=raw_ass_text().split("\n")
+                        #     # st.write(arr)
+                            arr=q_t
                             vectorstore=st.session_state.vectorstore
-                            arr=tut_ques[i].split("\n")
-                            # st.write(arr)
-    
                             for i in range(0,len(arr)):
                                 if len(arr[i])>0:
                                     newarr.append(arr[i])
@@ -197,8 +300,9 @@ if key and claud_key and youtube_key :
                                             response=chain.run(input_documents=tut_topics,question=arr[i])
                                             res_list=chain.run(input_documents=tut_topics,question="Use only and only this given chunk to provide a list of atmax 5 topics which the chunk comprises of , and make sure the 5 topics which you provide covers the entire chunk")
                                         except:
-                                            response="No data"
-                                            res_list=""
+                                            response=""
+                                            res_list=""    
+                                        
                                         st.write(response)
                                         ans.append(response)
                                         imp.append(res_list)
@@ -327,10 +431,10 @@ if key and claud_key and youtube_key :
                     report_text = f"Q: {str(st.session_state.data[0][i])} \n\n {str(st.session_state.data[1][i])}\n\n Important topics based on the anwsers: {str(st.session_state.data[2][i])}\n\n All Relevant Video Links: \n {links} "
                     pdf.set_font('DejaVu', '', 14)
                     # pdf.multi_cell(0,10, report_text)
-                    # pdf.set_font("Arial", size = 12)
+                    
                     
                     # Section 1
-                    pdf.multi_cell(0, 10, txt = "Q: " + str(st.session_state.data[0][i]), ln = True)
+                    pdf.multi_cell(0, 10, txt = "Q: " + str(st.session_state.data[0][i]),ln=True)
                     pdf.set_font('DejaVuB', '', 12)
 
                     # Section 2
