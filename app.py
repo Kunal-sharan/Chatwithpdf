@@ -1,5 +1,6 @@
 import streamlit as st
 from PyPDF2 import PdfReader
+import pandas as pd
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.embeddings import OpenAIEmbeddings, HuggingFaceInstructEmbeddings
 from langchain.vectorstores import FAISS
@@ -9,7 +10,7 @@ from langchain.llms import OpenAI
 # from langchain.memory import ConversationBufferMemory
 from langchain.chains import LLMChain
 from langchain.chains.question_answering import load_qa_chain
-from langchain.callbacks import get_openai_callback
+# from langchain.callbacks import get_openai_callback
 # from langchain.llms import HuggingFaceHub
 from PIL import Image
 import io
@@ -28,6 +29,43 @@ from textblob import TextBlob
 from autocorrect import Speller
 from spellchecker import SpellChecker
 import re
+from streamlit_gsheets import GSheetsConnection
+from textblob import TextBlob
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_google_genai import GoogleGenerativeAI
+from transformers import *
+
+
+
+def get_paraphrased_sentences(model, tokenizer, sentence, max_length=512, num_return_sequences=1, num_beams=5):
+    # Split the sentence into chunks of max_length tokens
+    sentence_chunks = [sentence[i:i+max_length] for i in range(0, len(sentence), max_length)]
+    
+    paraphrases = []
+    for chunk in sentence_chunks:
+        # Tokenize the text to be form of a list of token IDs
+        inputs = tokenizer([chunk], truncation=True, padding="longest", return_tensors="pt")
+        
+        # Generate the paraphrased sentences
+        outputs = model.generate(
+            **inputs,
+            num_beams=num_beams,
+            num_return_sequences=num_return_sequences,
+            max_new_tokens=max_length  # Use max_new_tokens instead of max_length
+        )
+        
+        # Decode the generated sentences using the tokenizer to get them back to text
+        paraphrases += tokenizer.batch_decode(outputs, skip_special_tokens=True)
+    
+    return paraphrases
+
+# sentence = "Learning is the process of acquiring new understanding, knowledge, behaviors, skills, values, attitudes, and preferences."
+# st.write(get_paraphrased_sentences(model, tokenizer, sentence, num_beams=10, num_return_sequences=5))  
+
+
+# st.dataframe(data)
+
+
 spell = SpellChecker()
 spell = Speller(lang='en')
 
@@ -114,26 +152,42 @@ def chat_with_claud(question, vectorstore, claud_key,key):
             response = chain.run(input_documents=doc, question=question)
             st.write("Response:", response)
         return response
-st.set_page_config(page_title="CourseMate.ai(v.0.01)-->(v.0.02)", page_icon=":books:")
+st.set_page_config(page_title="CourseMate.ai(v.0.01)-->(v.0.02)", page_icon=":books:",layout="wide")
+conn =  st.connection("gsheets", type=GSheetsConnection)
+
+# data = conn.read(worksheet="QnA_Data")
+
 tut_ques=[]
 imp=[]
 arr_list=[]
 imp_list=[]
 ques_ans=[]
 ans=[]
+paraphrased_response=[]
+p=[]
+original_texts = [
+    "The quick brown fox jumps over the lazy dog.",
+    "She sells seashells by the seashore.",
+    "How much wood would a woodchuck chuck if a woodchuck could chuck wood?"
+]
+net_data = []
+df=None
 template = """use this and only this {ass_chunk} chunk of text to extract the complete questions present in it
 question:
 """
 vector_store=None
+tokenizer = AutoTokenizer.from_pretrained("Vamsi/T5_Paraphrase_Paws")
+model = AutoModelForSeq2SeqLM.from_pretrained("Vamsi/T5_Paraphrase_Paws")
 prompt = PromptTemplate.from_template(template)
-key = st.text_input("Enter your Open AI API Key")
-claud_key = st.text_input("Enter your Claud AI API Key")
-youtube_key=st.text_input("Enter your Youtube Data V3 API key")
+api_key = st.text_input("Enter your Open AI API Key")
+# claud_key = st.text_input("Enter your Claud AI API Key")
+# youtube_key=st.text_input("Enter your Youtube Data V3 API key")
 # api_key=st.text_input("Google ai key")
 
-if key and claud_key and youtube_key :
+if api_key  :
     st.header("CourseMate.ai(v.0.01)-->(v.0.02) :books:")
-    
+    if 'data' not in st.session_state:
+     st.session_state.data = []
     st.subheader("Your documents")
     pdf_docs = st.file_uploader("Upload your PDFs here and click on 'Process'", accept_multiple_files=True)
     
@@ -171,7 +225,7 @@ if key and claud_key and youtube_key :
                                 st.image(pdf_image.as_pil_image())                           
         op=st.selectbox(
         "What would you like to do?",
-         ( "Custom Pages","All pages(page limit)","Scanned pdf with images"),key="2")
+         ( "Custom Pages","All pages","Scanned pdf with images"),key="2")
         if op and op == "Custom Pages" :
             st_page=st.text_input("Enter start page ",key="4")
             end_page=st.text_input("Enter end page ",key="3")
@@ -184,26 +238,28 @@ if key and claud_key and youtube_key :
                                 text_chunks = get_text_chunks(raw_text)
 
                                 if text_chunks:
-                                    embeddings = OpenAIEmbeddings(openai_api_key=key)
+                                    # embeddings = OpenAIEmbeddings(openai_api_key=key)
+                                    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001",google_api_key=f'{api_key}')
                                     st.session_state.vectorstore = FAISS.from_texts(text_chunks, embeddings)
                                     st.success("Text processing completed!")
                             except:
                                 st.write("Error in reading the file.")
         
-        if op and op == "All pages(page limit 20 pages)" :
-                process_button = st.button('Process')
+        elif op and op == "All pages" :
+                process_button = st.button('Process',key="67")
                 if process_button:
                             try:
                                 raw_text = get_pdf_ass_text(pdf_docs)
                                 text_chunks = get_text_chunks(raw_text)
 
                                 if text_chunks:
-                                    embeddings = OpenAIEmbeddings(openai_api_key=key)
+                                    # embeddings = OpenAIEmbeddings(openai_api_key=key)
+                                    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001",google_api_key=f'{api_key}')
                                     st.session_state.vectorstore = FAISS.from_texts(text_chunks, embeddings)
                                     st.success("Text processing completed!")
                             except:
                                 st.write("Error in reading the file.")
-        if op and op == "Scanned pdf with images":
+        elif op and op == "Scanned pdf with images":
             st_page=st.text_input("Enter start page ",key="5")
             end_page=st.text_input("Enter end page ",key="6")
             if st_page and end_page:
@@ -243,12 +299,12 @@ if key and claud_key and youtube_key :
             st.subheader("Interactive Chat with with Claud AI")
             user_question = st.text_input("Ask a question:", key="user_question")
 
-            if user_question:
-                text_contents=str(chat_with_claud(user_question, vectorstore, claud_key,key))
-                st.download_button('Download some text', text_contents)
+            # if user_question:
+            #     text_contents=str(chat_with_claud(user_question, vectorstore, claud_key,key))
+            #     st.download_button('Download some text', text_contents)
         else:
             st.write("Enter The documents First")
-
+    "---------"
     if option and  option=="Solve Assignment":
         tut_doc=st.file_uploader("Upload Your assignment file one at a time",accept_multiple_files=True)
         if tut_doc is not None :
@@ -270,92 +326,238 @@ if key and claud_key and youtube_key :
                 #         # st.write(response)
                 #         tut_ques.append(response)
                 #         st.write(tut_ques)
-                q_t=raw_ass_text.split("?")
+                q_t=raw_ass_text.split("\n")
                
                 newarr=[]
                 arr=[]
                 lin_yt=[]
+                
                 # youtube = build('youtube', 'v3', developerKey=f'{youtube_key}')              
                 with st.spinner("Processing..."):
-                    if 'vectorstore' in st.session_state:
-                        # for i in range(0,len(q_t)):
-                        #     vectorstore=st.session_state.vectorstore
-                        #     arr=raw_ass_text().split("\n")
-                        #     # st.write(arr)
-                            arr=q_t
-                            vectorstore=st.session_state.vectorstore
-                            for i in range(0,len(arr)):
-                                if len(arr[i])>0:
-                                    newarr.append(arr[i])
-                                    tut_topics=vectorstore.similarity_search(arr[i])
-                                    st.write("Question: ",arr[i])
-                                    # st.write(tut_topics)
-                                    llm=OpenAI(openai_api_key=f"{key}")
-                                    # llm = GoogleGenerativeAI(model="models/text-bison-001", google_api_key=f'{api_key}')
+                   
+                              
+                        if 'vectorstore' in st.session_state:
+                            # for i in range(0,len(q_t)):
+                            #     vectorstore=st.session_state.vectorstore
+                            #     arr=raw_ass_text().split("\n")
+                            #     # st.write(arr)
+                                arr=q_t
+                                vectorstore=st.session_state.vectorstore
+                                llm = GoogleGenerativeAI(model="models/text-bison-001", google_api_key=f'{api_key}')
 
-                                    chain=load_qa_chain(llm,chain_type="stuff")
-                                    # chain = load_qa_chain(AnthropicLLM(model='claude-2.1', anthropic_api_key=claud_key), chain_type="stuff")
-                                    with get_openai_callback() as cb:
+                                chain=load_qa_chain(llm,chain_type="stuff")
+                                for i in range(0,len(arr)):
+                                    if len(arr[i])>0:
+                                        newarr.append(arr[i])
+                                        tut_topics=vectorstore.similarity_search(arr[i])
+                                        st.write("Question: ",arr[i])
+                                        # st.write(tut_topics)
+                                        # llm=OpenAI(openai_api_key=f"{key}")
+                                        
+                                        # chain = load_qa_chain(AnthropicLLM(model='claude-2.1', anthropic_api_key=claud_key), chain_type="stuff")
+                                        # with get_openai_callback() as cb:
                                         try:
                                             response=chain.run(input_documents=tut_topics,question=arr[i])
                                             res_list=chain.run(input_documents=tut_topics,question="Use only and only this given chunk to provide a list of atmax 5 topics which the chunk comprises of , and make sure the 5 topics which you provide covers the entire chunk")
                                         except:
                                             response=""
                                             res_list=""    
-                                        
-                                        st.write(response)
-                                        ans.append(response)
-                                        imp.append(res_list)
-                                        st.write(cb)
-                        
-                                    arr_list=res_list.split("\n")
-                                    # for j in range(0,len(arr_list)):
-                                    #     imp_list.append(arr_list[j])   
-                                # st.write(imp_list)
-                                
-                                    # st.write(arr_list)
-                                    yt_data=[]
-                                    for i in range(0,len(arr_list)):
-                                        if len(arr_list[i])>0:
                                             
+                                            # st.write(response)
+                                            ans.append(response)
+                                            paraphrased_response.append(get_paraphrased_sentences(model, tokenizer,response))
+                                            imp.append(res_list)
                                             
-                                            # search_response = youtube.search().list(
-                                            #             q=f'{arr_list[i]}',
-                                            #             part='id,snippet',
-                                            #             maxResults=1
-                                            #         ).execute()
-                                            # for search_result in search_response.get('items', []):
-                                            #     if search_result['id']['kind'] == 'youtube#video':
-                                            #         video_data = {
-                                            #                 "topic":f"{arr_list[i]}",
-                                            #                 "title": f"{search_result['snippet']['title']}",
-                                            #                 "links": f"https://www.youtube.com/watch?v={search_result['id']['videoId']}",
-                                            #                 "desc":f"Description: {search_result['snippet']['description']}"
-                                            #             }
-                                            videoSearch=VideosSearch(f"{arr_list[i]}",limit=1)
-                                            if videoSearch.result()['result']:
-                                                video_data={
-                                                    "title":f"{str(videoSearch.result()['result'][0]['title'])}",
-                                                    "links":f"{videoSearch.result()['result'][0]['link']}",
-                                                    "thumbnail":f"{videoSearch.result()['result'][0]['thumbnails'][0]['url']}"
-                                                }
-                                                yt_data.append(video_data)
-                                    st.write(yt_data)        
-                                    lin_yt.append(yt_data)                    
-                            ques_ans.append(newarr)            
-                            ques_ans.append(ans)
-                            ques_ans.append(imp)
-                            ques_ans.append(lin_yt)
-                            st.session_state.data=ques_ans
                             
-        if "data" in st.session_state:
-            # Create an "Export Report" button
-            q=st.session_state.data
-            
-# If the button is clicked
-            
-            export_as_pdf = st.button("Export Report with relevant youtube videos link")
-            if export_as_pdf:
+                                        arr_list=res_list.split("\n")
+                                        # for j in range(0,len(arr_list)):
+                                        #     imp_list.append(arr_list[j])   
+                                    # st.write(imp_list)
+                                    
+                                        # st.write(arr_list)
+                                        yt_data=[]
+                                        for i in range(0,len(arr_list)):
+                                            if len(arr_list[i])>0:
+                                                
+                                                
+                                                # search_response = youtube.search().list(
+                                                #             q=f'{arr_list[i]}',
+                                                #             part='id,snippet',
+                                                #             maxResults=1
+                                                #         ).execute()
+                                                # for search_result in search_response.get('items', []):
+                                                #     if search_result['id']['kind'] == 'youtube#video':
+                                                #         video_data = {
+                                                #                 "topic":f"{arr_list[i]}",
+                                                #                 "title": f"{search_result['snippet']['title']}",
+                                                #                 "links": f"https://www.youtube.com/watch?v={search_result['id']['videoId']}",
+                                                #                 "desc":f"Description: {search_result['snippet']['description']}"
+                                                #             }
+                                                videoSearch=VideosSearch(f"{arr_list[i]}",limit=1)
+                                                if videoSearch.result()['result']:
+                                                    video_data={
+                                                        "title":f"{str(videoSearch.result()['result'][0]['title'])}",
+                                                        "links":f"{videoSearch.result()['result'][0]['link']}",
+                                                        "thumbnail":f"{videoSearch.result()['result'][0]['thumbnails'][0]['url']}"
+                                                    }
+                                                    yt_data.append(video_data)
+                                        # st.write(yt_data)        
+                                        lin_yt.append(yt_data)                    
+                                ques_ans.append(newarr)            
+                                ques_ans.append(ans)
+                                ques_ans.append(imp)
+                                ques_ans.append(lin_yt)
+                                ques_ans.append(paraphrased_response)
+                        st.session_state.data=ques_ans
+                                # df=pd.DataFrame(ques_ans)
+                                # st.session_state.df=df
+                        
+                        
+                        
+                        
+        if "data" and "vectorstore" in st.session_state:
+        # Create an "Export Report" button
+            vectorstore=st.session_state.vectorstore
+        # Assuming that the variables `q` and `st.session_state.data` are defined elsewhere in your code
+
+        # Initialize an empty list to store the data
+
+                        
+                                        
+            # Loop over the range of the length of `q[0]`
+            if  len(st.session_state.data)>0: 
+                for i in range(len(st.session_state.data[0])):
+                    # For each `i`, create a dictionary with "Questions", "Answers", "Important Topics", and "Relevant Youtube Videos"
+                    # Then, append this dictionary to the `net_data` list
+                    for j in range(len(st.session_state.data[3][i])):
+                        tut_topics=vectorstore.similarity_search(str(st.session_state.data[2][i]).split("\n")[j])
+                        des=""
+                        for doc in tut_topics:
+                            des+=str(doc.page_content)+"\n"
+                        descr=str(apply_spell_check(des))    
+                        net_data.append({
+                            "Questions": str(st.session_state.data[0][i]),
+                            "Answers": str(st.session_state.data[1][i]),
+                            "Paraphrased_answer":str(st.session_state.data[4][i]),
+                            "Important Topics": str(st.session_state.data[2][i]).split("\n")[j],
+                            "Topic description": str(descr),
+                            "Relevant Youtube Videos Title": str(st.session_state.data[3][i][j]["title"]),
+                            "Relevant Youtube Videos Link": str(st.session_state.data[3][i][j]["links"])
+                        })
+
+                # Now, `net_data` is a list of dictionaries, where each dictionary represents a data record
+                df=pd.DataFrame(net_data)
+                st.dataframe(df)
+                # if st.button("add Report"):
+                #     conn.create(worksheet="QnA_Data",data=df)
+                    # st.success("Report added successfully")
+                d_new=conn.read(worksheet="Paraphrased answer")
+                conn.update(worksheet="CourseMate",data=df)
+                st.success("Done")
+                
+                # if not d_new.empty:
+                #     st.dataframe(d_new)
+                #     d_new.dropna(subset=["Answers"], inplace=True)  # Drop rows with NaN in "Answers" column
+                #     answers = df["Answers"].values  # Extract "Answers" column as array
+                #     answers = answers[~pd.isnull(answers)]
+                #     questions=d_new["Questions"].values
+                #     questions=questions[~pd.isnull(answers)]
+                #     # Remove NaN values
+                #     for i in range(0,len(answers)):
+                #         qu=questions[i].split("\n")
+                #         q=" ".join(qu)
+                #         p.append({
+                #             "question":f"{q}",
+                #             "orginal_answer": f"{answers[i]}",
+                #             "paraphrased_answer":str(get_paraphrased_sentences(model, tokenizer, answers[i])[0])
+                #         })
+
+                #     p_frame=pd.DataFrame(p)
+                #     st.dataframe(p_frame)
+                #     st.write(p)
+                
+                #     conn.update(worksheet="Paraphrased answer",data=p_frame)
+                #     d=conn.read(worksheet="Paraphrased answer")
+                #     st.success("Done")
+                #     st.dataframe(d)
+                #     st.write(d)
+                #     st.success("done")    
+                if st.button("Drop Current report"):
+                    conn.clear(worksheet="QnA_Data")
+                    st.success("Report dropped successfully")
+                if st.button("Update Current report"):
+                    conn.update(worksheet="CourseMate",data=df)
+                    st.success("Done")
+                if st.button("Read"):
+                    # conn =  st.connection("gsheets", type=GSheetsConnection)
+                    d=conn.read(worksheet="CourseMate")
+                    st.dataframe(d)
+
+                            
+
+                # If the button is clicked
+
+                export_as_pdf = st.button("Export Report with relevant youtube videos link")
+                if export_as_pdf:
+                        pdf = FPDF()
+                        pdf.add_font('DejaVu', '', 'DejaVuSansCondensed.ttf', uni=True)
+                        pdf.add_font('DejaVuB', '', 'DejaVuSans-Bold.ttf', uni=True)
+                        pdf.add_font('DejaVuN', '', 'DejaVuSans.ttf', uni=True)
+
+                        for i in range(0,len(net_data)):
+                            pdf.set_margins(10, 10, 5)
+                            pdf.add_page()
+                            report_text=""
+                            links=""
+                                #  links+=f"""<h1>Title:</h1><h2>{n_t}</h2>
+                                #             <br>
+                                #             <A HREF="{lnk}">{lnk}</A>
+                                #             """ 
+
+                            # report_text = f"Q: {str(st.session_state.data[0][i])} \n\n {str(st.session_state.data[1][i])}\n\n Important topics based on the anwsers: {str(st.session_state.data[2][i])}\n\n All Relevant Video Links: \n {links} "
+
+                            pdf.set_font('DejaVu', '', 14)
+                            # pdf.multi_cell(0,10, report_text)
+                            # pdf.set_font("Arial", size = 12)
+                            
+                            # Section 1
+                            qu=net_data[i]["Questions"].split("\n")
+                            q=" ".join(qu)
+                            pdf.multi_cell(0, 10, txt = "Q: " + str(q), ln = True)
+                            pdf.set_font('DejaVuB', '', 12)
+
+                            # Section 2
+                            pdf.multi_cell(0, 10, txt ="A: "+ str(net_data[i]["Answers"])+"\n", ln = True)
+                            pdf.set_font('DejaVuB', '', 12)
+                            pdf.multi_cell(0, 10, txt ="A(1): "+ str(net_data[i]["Paraphrased_answer"])+"\n", ln = True)
+                            pdf.set_font('DejaVuB', '', 12)
+                            pdf.set_text_color(255, 0, 0)
+                            # Section 3
+                            pdf.multi_cell(0, 10, txt = "Important topics based on the answers: " , ln=True)
+                            pdf.set_text_color(0, 0, 0)
+                            pdf.set_font('DejaVu', '', 12)
+                            important_topics = str(net_data[i]["Important Topics"])
+                            pdf.multi_cell(0, 10, txt = important_topics,ln=True)
+                            pdf.set_font('DejaVu', '', 12)
+                            pdf.multi_cell(0,10,txt="\n"+"IMPORTANT TOPICS AND LINKS: ",ln=True)
+                            
+                            lnk=str(net_data[i]["Relevant Youtube Videos Link"])
+                            n_t=str(net_data[i]["Relevant Youtube Videos Title"])
+                            pdf.set_font('DejaVuB', '', 12)
+                            pdf.multi_cell(0, 10, txt = f"{n_t}",ln=True )
+                            pdf.set_font('DejaVu', '', 12)
+                            pdf.set_text_color(0, 0, 255)
+                            pdf.multi_cell(0, 10, txt = f"{lnk}" , ln=True)
+                            pdf.set_text_color(0, 0, 0)
+
+
+                                
+                        html = create_download_link(pdf.output(dest="S"), "test","With youtube video links")
+
+                        st.markdown(html, unsafe_allow_html=True)
+
+                export_as_pdf_E = st.button("Export Report without video links")
+                if export_as_pdf_E:
                     pdf = FPDF()
                     pdf.add_font('DejaVu', '', 'DejaVuSansCondensed.ttf', uni=True)
                     pdf.add_font('DejaVuB', '', 'DejaVuSans-Bold.ttf', uni=True)
@@ -372,13 +574,12 @@ if key and claud_key and youtube_key :
                             #             """ 
 
                         report_text = f"Q: {str(st.session_state.data[0][i])} \n\n {str(st.session_state.data[1][i])}\n\n Important topics based on the anwsers: {str(st.session_state.data[2][i])}\n\n All Relevant Video Links: \n {links} "
-
                         pdf.set_font('DejaVu', '', 14)
                         # pdf.multi_cell(0,10, report_text)
-                        # pdf.set_font("Arial", size = 12)
+                        
                         
                         # Section 1
-                        pdf.multi_cell(0, 10, txt = "Q: " + str(st.session_state.data[0][i]), ln = True)
+                        pdf.multi_cell(0, 10, txt = "Q: " + str(st.session_state.data[0][i]),ln=True)
                         pdf.set_font('DejaVuB', '', 12)
 
                         # Section 2
@@ -391,84 +592,26 @@ if key and claud_key and youtube_key :
                         pdf.set_font('DejaVu', '', 12)
                         important_topics = str(st.session_state.data[2][i])
                         pdf.multi_cell(0, 10, txt = important_topics,ln=True)
-                        pdf.set_font('DejaVu', '', 14)
-                        pdf.multi_cell(0,10,txt="\n"+"IMPORTANT TOPICS AND LINKS: ",ln=True)
-                        for j in range(0,len(st.session_state.data[3][i])):
-                            title=st.session_state.data[3][i][j]["title"]
-                            t_arr=title.split(" ")
-                            n_t=' '.join(map(str, t_arr))
-                            lnk=st.session_state.data[3][i][j]["links"]
-                            pdf.set_font('DejaVuB', '', 12)
-                            pdf.multi_cell(0, 10, txt = f"{n_t}",ln=True )
-                            pdf.set_font('DejaVu', '', 12)
-                            pdf.set_text_color(0, 0, 255)
-                            pdf.multi_cell(0, 10, txt = f"{lnk}" , ln=True)
-                            pdf.set_text_color(0, 0, 0)
+                        
 
 
                             
-                    html = create_download_link(pdf.output(dest="S"), "test","With youtube video links")
+                    html = create_download_link(pdf.output(dest="S"), "test","without video links")
 
                     st.markdown(html, unsafe_allow_html=True)
-            
-            export_as_pdf_E = st.button("Export Report without video links")
-            if export_as_pdf_E:
-                pdf = FPDF()
-                pdf.add_font('DejaVu', '', 'DejaVuSansCondensed.ttf', uni=True)
-                pdf.add_font('DejaVuB', '', 'DejaVuSans-Bold.ttf', uni=True)
-                pdf.add_font('DejaVuN', '', 'DejaVuSans.ttf', uni=True)
+                                
+                                # num_rows = len(yt_data) // 1
+                                # if len(yt_data) % 1 != 0:
+                                #     num_rows += 1
 
-                for i in range(0,len(st.session_state.data[0])):
-                    pdf.set_margins(10, 10, 5)
-                    pdf.add_page()
-                    report_text=""
-                    links=""
-                        #  links+=f"""<h1>Title:</h1><h2>{n_t}</h2>
-                        #             <br>
-                        #             <A HREF="{lnk}">{lnk}</A>
-                        #             """ 
-
-                    report_text = f"Q: {str(st.session_state.data[0][i])} \n\n {str(st.session_state.data[1][i])}\n\n Important topics based on the anwsers: {str(st.session_state.data[2][i])}\n\n All Relevant Video Links: \n {links} "
-                    pdf.set_font('DejaVu', '', 14)
-                    # pdf.multi_cell(0,10, report_text)
-                    
-                    
-                    # Section 1
-                    pdf.multi_cell(0, 10, txt = "Q: " + str(st.session_state.data[0][i]),ln=True)
-                    pdf.set_font('DejaVuB', '', 12)
-
-                    # Section 2
-                    pdf.multi_cell(0, 10, txt ="A: "+ str(st.session_state.data[1][i])+"\n", ln = True)
-                    pdf.set_font('DejaVuB', '', 14)
-                    pdf.set_text_color(255, 0, 0)
-                    # Section 3
-                    pdf.multi_cell(0, 10, txt = "Important topics based on the answers: " , ln=True)
-                    pdf.set_text_color(0, 0, 0)
-                    pdf.set_font('DejaVu', '', 12)
-                    important_topics = str(st.session_state.data[2][i])
-                    pdf.multi_cell(0, 10, txt = important_topics,ln=True)
-                    
-
-
-                        
-                html = create_download_link(pdf.output(dest="S"), "test","without video links")
-
-                st.markdown(html, unsafe_allow_html=True)
-                            
-                            # num_rows = len(yt_data) // 1
-                            # if len(yt_data) % 1 != 0:
-                            #     num_rows += 1
-
-                            # for i in range(num_rows):
-                            #     cols = st.columns(1)
-                            #     for j in range(1):
-                            #         index = i * 1 + j
-                            #         if index < len(yt_data):
-                            #             tile = cols[j].container(height=700)
-                            #             tile.write(yt_data[index]["topic"])
-                            #             tile.write(yt_data[index]["title"])
-                            #             tile.video(yt_data[index]["links"])
-                            #             tile.write(yt_data[index]["desc"])
-                                    
-
-                            
+                                # for i in range(num_rows):
+                                #     cols = st.columns(1)
+                                #     for j in range(1):
+                                #         index = i * 1 + j
+                                #         if index < len(yt_data):
+                                #             tile = cols[j].container(height=700)
+                                #             tile.write(yt_data[index]["topic"])
+                                #             tile.write(yt_data[index]["title"])
+                                #             tile.video(yt_data[index]["links"])
+                                #             tile.write(yt_data[index]["desc"])
+                                        
